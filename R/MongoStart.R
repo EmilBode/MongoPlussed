@@ -1,25 +1,8 @@
 # Helper function, not exported
 portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('netstat -an', intern = TRUE)))}
-if(F) {
-  portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('netstat -an', intern = TRUE)))}
-  dockername <- 'test'
-  path <- '~/Documents/DBs/MongoTest'
-  db <- 'NARCIS'
-  collection <- 'Apr18'
-  imagename <- 'mongo'
-  host <- 'localhost'
-  port <- '27017+'
-  kickport <- F
-  inclView <- 'mongo-express'
-  viewport <- '8081+'
-  update <- TRUE # Other then default!
-  preOnly <- F
-  skip <- 0
-  user <- NULL
-  pswd <- NULL
-  verbose <- TRUE
+.onAttach <- function(libname, pkgname) {
+  packageStartupMessage('Based on the mongolite-package by Jeroen Ooms')
 }
-
 #' MongoDB client with extra functionality
 #'
 #' Comparable to mongolite::mongo, but with a few extra methods (taggedfind, adjust), an extra RMongo-object,
@@ -78,6 +61,22 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
   for(f in ls(parent)) assign(f, get(f, pos=parent), mlite)
   class(mlite) <- unique(c('monPlus',class(parent), class(mlite)))
   return(mlite)
+}
+print.monPlus <- function(x) {
+  mongolite:::print.mongo(parent.env(x))
+  extra <- ls(x)[!ls(x) %in% ls(parent.env(x))]
+  extracl <- sapply(extra, function(obj) {class(get(obj, x))})
+  extrafun <- extra[extracl=='function']
+  extraobj <- extra[extracl!='function']
+  cat('Extra methods monPlus-methods:',
+      paste0(' ', c(sapply(extrafun, function(obj) {
+        argsline <- deparse(args(get(obj, x)))
+        argsline <- argsline[-length(argsline)]
+        gsub('function ', obj, argsline)
+      }))),
+      'Extra accessors to attributes:',
+      paste0(' ',extraobj, ' (', class(get(extraobj, x)),'-object)'),
+      sep='\n')
 }
 
 #' Start mongo-instance in docker
@@ -167,10 +166,6 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                 host='localhost', port='27017+', kickport=FALSE,
                 inclView='mongo-express', viewport='8081+', update=FALSE, preOnly=FALSE, skip=0,
                 db, collection, user=NULL, pswd=NULL, verbose=TRUE) {
-  # This statement can be removed once inside a package (with imports)
-  if(F&&environmentName(environment())!='Mongo_extensions') {
-    EmilMisc::libinstandload('devtools','EmilMisc','RMongo','jsonlite', 'mongolite')
-  }
   if(!is.numeric(port)) {
     if(!grepl('\\+$', port)) stop('Bad arguments: Unclear port')
     port <- suppressWarnings(as.numeric(gsub('\\+$','',port)))
@@ -504,22 +499,6 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
   return(monPlus(collection = collection, db = db, host = host, port=port, verbose = verbose))
 }
 
-print.monPlus <- function(x) {
-  mongolite:::print.mongo(parent.env(x))
-  extra <- ls(x)[!ls(x) %in% ls(parent.env(x))]
-  extracl <- sapply(extra, function(obj) {class(get(obj, x))})
-  extrafun <- extra[extracl=='function']
-  extraobj <- extra[extracl!='function']
-  cat('Extra methods monPlus-methods:',
-      paste0(' ', c(sapply(extrafun, function(obj) {
-        argsline <- deparse(args(get(obj, x)))
-        argsline <- argsline[-length(argsline)]
-        gsub('function ', obj, argsline)
-      }))),
-      'Extra accessors to attributes:',
-      paste0(' ',extraobj, ' (', class(get(extraobj, x)),'-object)'),
-      sep='\n')
-}
 
 
 

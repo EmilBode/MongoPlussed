@@ -1,8 +1,8 @@
 Package: MongoPlussed
 Title: Extensions of Mongolite Package
 Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Authors@R: person("Emil", "Bode", email = "Emil.Bode@dans.knaw.nl", role = c("aut", "cre"))
+Description: Extra interfaces for working with a mongo-database. It is largely based on the mongolite package by Jeroen Ooms, but contains some extensions: Script for creating and accessing mongo-dbs in a docker-container, and for simplifying querying in nested documents. And it hides less of the internals, so you can more easily write own extensions, and also use methods from the RMongo-packaage
 Depends: R (>= 3.5.0)
 Imports: mongolite (>= 1.5),
     dplyr (>= 0.7.5),
