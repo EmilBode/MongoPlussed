@@ -2,4 +2,6 @@
 
 export(OpenDockerMongo)
 export(monPlus)
+export(mongoAdjust)
 export(taggedMongofind)
+importFrom(EmilMisc,"%!in%")

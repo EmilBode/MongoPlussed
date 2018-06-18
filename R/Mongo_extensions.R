@@ -80,16 +80,17 @@ simpleMongofind <- function(moncol, qry='{}', fields = '{"_id" : 0}', sort = '{}
 #' @param stringsAsFactors logical: should character vectors be converted to factors? The ‘factory-fresh’ default is TRUE, but this can be changed by setting options(stringsAsFactors = FALSE).
 #' @return A dataframe, consisting of the fields in arrayfield, and (repeated) top-level document fields. The top-level fields are prefixed with "rec_"
 #' @examples
-#' # Assumed: we can establish a connection to mongodb://localhost:27017, and that this is a new or empty database/collection
+#' # Assumed: we can establish a connection to mongodb://localhost:27017,
+#' # and that this is a new or empty database/collection
 #' MyMongo <- monPlus('MyCol','MyMon')
-#' MyMongo$insert(c('{"OwnID":"Doc1","Authors": {"Name": ["John Smith", "George"], "RegistrNo": [1,2]}}',
+#' MyMongo$insert(c('{"OwnID":"Doc1","Authors": {"Name": ["John Smith", "Ben"], "RegistrNo": [1,2]}}',
 #' '{"OwnID":"Doc2","Authors": {"Name": ["John Smith", "William Smith"], "RegistrNo": [3,4]}}',
-#' '{"OwnID":"Doc3","Authors": {"Name": ["William", "George Smith"], "RegistrNo": [4,2]}}'))
-#' taggedMongofind(MyMongo$col, '{"Authors.Name": "John Smith"}',arrayfield = 'Authors', tagfields = 'OwnID')
+#' '{"OwnID":"Doc3","Authors": {"Name": ["William", "Benjamin Smith"], "RegistrNo": [4,2]}}'))
+#' taggedMongofind(MyMongo$col, '{"Authors.Name": "John Smith"}',
+#' arrayfield = 'Authors', tagfields = 'OwnID')
+#' \dontshow{MyMongo$remove('{"OwnID": {"$in": ["Doc1","Doc2","Doc3"]}}')
+#' if(MyMongo$count()==0) MyMongo$drop()}
 #' @export
-
-
-
 taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=FALSE, stringsAsFactors=default.stringsAsFactors()) {
   if(class(moncol)!='mongo_collection' || mongolite:::null_ptr(moncol)) stop('Mongo collection pointer is invalid or dead')
   if(is.null(arrayfield) || is.na(arrayfield) || !is.character(arrayfield) || length(arrayfield)<1) stop('No valid arrayfield specified')
@@ -163,6 +164,143 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
   }
   return(result)
 }
+
+#' Use a function to update documents in a mongo-Db dynamically
+#'
+#' A regular query to a mongo-db such as used in the update-method sets field statically, or with limited calculations (increment or multiply)
+#' But doing more extensive modifications is not possible in this way. If you want, for example to take 2 textfields, concatenate them and store them in the DB,
+#' you need to retrieve the document(s), adapt their value and update this value in the database. Potentially, you need a lot of memory to do this in one go, so this function does this sequentially.
+#' Its use is comparable to using the apply-family, the following steps are taken:
+#' \enumerate{
+#'   \item The findqry is executed over the mongo-db, which returns a pointer to the result-list (which is still stored on the server)
+#'   \item A page of /emph{pagesize} documents is retrieved, identifier-information is stored
+#'   \item The resulting documents are passed on to FUN. Then there are a few possibilites, based on how many fields you want to update, and whether these are arrayfields, or single values:
+#'   \itemize{
+#'     \item If setfield is a length-one character, and FUN returns a vector, this is interpreted as one value for each document.
+#'     \item If setfield is a length-one character, and FUN returns an unnamed list, this is interpreted as an element for each document. Note that these element are coerced to arrays, even if the elements themselves are length-one.
+#'     If you want to prevent this (e.g. to mix values and arrays), you can use \code{\link[jsonlite]{unbox}}.
+#'     \item If setfield is a character of length>1, FUN is expected to return a list with names equal to the values of setfield. The elements of these lists are treated the same as in the other 2 steps.
+#'     \item If setfield is of length 1, it is also allowed to have FUN return a named list of length-one with the name of setfield. This is if you don't know the length of setfield beforehand.
+#'   }
+#'   \item Updates are done bases on unique values, so if the results are just a few possible values, updating will be faster. For passing on values to mongo-db, \code{\link[jsonlite]{toJSON}}
+#'   is used, which influences some details (NA's are converted to null, NULLs to empty arrays, etc.). Use the jsonargs parameter to pass on extra arguments to toJSON.
+#' }
+#'
+#' @param moncol Used when directly calling mongoAdjust, pointer to the mongo-collection. If you use monPlus()$adjust, this is retrieved from monPlus
+#' @param findqry Query to find matching documents
+#' @param infields Fields to retrieve and pass on to FUN, as a character-vector. Use 'All' (default) to get all possible fields, or a first element of 'Not' to list all fields that should be discarded.
+#' @param setfield Field(s) to set, as a character-vector. May be overlapping with infields.
+#' @param FUN Function to handle the documents, and give back values to set.
+#' \cr input to FUN is a list of retrieved documents (normally of length pagesize, unless the end is reached), and extra arguments passed on with ...
+#' \cr If setfield is of length>1, it should give back a named list, with \code{length(FUN())==length(setfield) && names(FUN())==setfield},
+#' containing as element unnamed lists or vectors of length equal to the input provided.
+#' \cr If setfield is of length one, it can either give back a similar named list of length one, or a similar element (unnamed list or vector of same length as input)
+#' @param ... Extra arguments passes on to FUN
+#' @param jsonargs List of extra arguments passed on \code{\link[jsonlite]{toJSON}}, see there for details. Useful to specify encoding of dates, NA, NULLs, etc.
+#' A number of arguments is arguments has differing defaults: POSIXt and raw defult to 'mongo' if not specified.
+#' @param skip Number of document to skip, useful for stopping and resuming later
+#' @param limit Limit on number of documents. 0 for unlimited.
+#' @param pagesize Number of documents to use for one page. Smaller uses less memory, but is slower.
+#' @param verbose Emit extra output (counter after a page has been processed). Takes over the default from a monPlus-object if provided.
+#'
+#' @return A list with elements modifiedCount and matchedCount, sum of all documents.
+#' @examples
+#' # Assumed: we can establish a connection to mongodb://localhost:27017,
+#' # with documents containing a field firstname and lastname
+#' MyMongo <- monPlus('MyCol','MyMon')
+#' MyMongo$insert(c('{"OwnID":"Doc1","Author": {"FirstName": "John", "LastName": "Smith"}}',
+#' '{"OwnID":"Doc2","Author": {"FirstName": "James", "LastName": "Brown"}}',
+#' '{"OwnID":"Doc3","Author": {"FirstName": "George", "LastName": "Watson"}}'))
+#' mongoAdjust(MyMongo$col, infields=c('Author.FirstName','Author.LastName'),
+#' setfield='Author.FullName',FUN=function(x) {unname(sapply(x, paste, collapse=' '))})
+#'
+#' # Cleaning up
+#' MyMongo$remove('{"OwnID": {"$in": ["Doc1","Doc2","Doc3"]}}')
+#' if(MyMongo$count()==0) MyMongo$drop()
+#'
+#' @importFrom EmilMisc %!in%
+#' @export
+
+mongoAdjust <- function(moncol, findqry='{}', infields=c('All'), setfield='extraInfo_from_R', FUN, ..., jsonargs=list(), skip=0, limit=0, pagesize=1000, verbose=FALSE) {
+  if(class(moncol)!='mongo_collection' || mongolite:::null_ptr(moncol)) stop('Mongo collection pointer is invalid or dead')
+  if(is.null(names(jsonargs)) || 'POSIXt' %!in% names(jsonargs)) jsonargs$POSIXt <- 'mongo'
+  if('raw' %!in% names(jsonargs)) jsonargs$raw <- 'mongo'
+  if(all(infields=='All')) {
+    fields <- '{}'
+  } else if(infields[1]=='Not') {
+    fields <- infields[infields %!in% c('Not', '_id')]
+    fields <- paste0('{"', paste(fields, collapse = '": 0, "'), '": 0}')
+  } else {
+    fields <- paste0('{"', paste(infields, collapse = '": 1, "'), '": 1}')
+    # Doesn't matter if _id is included or not, it defaults to true
+  }
+  cur <- mongolite:::mongo_collection_find(moncol, query=findqry, fields = fields, skip=skip, limit=limit)
+  cnt <- 0
+  modCnt <- 0
+  matCnt <- 0
+  repeat {
+    page <- mongolite:::mongo_cursor_next_page(cur, pagesize)
+    if(length(page)) {
+      # Process page
+      if(names(page[[1]])[1]!='_id') stop('\nUnexpected return from mongodb, function mongoAdjust')
+      ids <- sapply(page, `[[`,1)
+      toFUN <- if(any(c('All','_id') %in% infields)) page else sapply(page, `[`, i=-1)
+      setVals <- FUN(toFUN, ...)
+      if(length(setfield)==1 && is.null(names(setVals)) && length(setVals)==length(toFUN)) {
+        setVals <- list(setVals)
+        names(setVals) <- setfield
+      }
+      if(is.null(names(setVals)) || !identical(names(setVals),setfield) || !all(sapply(setVals, length)==length(toFUN)))
+        stop('\nUnexpexted return value from FUN (',modCnt,' modified, out of first ',matCnt,' matched records')
+      setVals <- lapply(1:length(toFUN), function(i) {
+        lapply(setVals, function(field) {
+          if(class(field)=='list') {
+            field[[i]]
+          } else {
+            jsonlite::unbox(field[[i]])
+          }
+        })
+      })
+      for(vals in unique(setVals)) {
+        idcs <- which(sapply(setVals, identical, y=vals))
+        upd <- mongolite:::mongo_collection_update(col=moncol,
+              selector = paste0('{"_id": {"$in": [{"$oid":"', paste(ids[idcs], collapse = '"}, {"$oid":"'),'"}]}}'),
+              update = paste0('{"$set":',jsonlite::toJSON(vals),'}'),
+              filters=NULL, upsert=FALSE,
+              multiple = length(idcs)>1, replace=FALSE)
+        modCnt <- modCnt+upd$modifiedCount
+        matCnt <- matCnt+upd$matchedCount
+        if(upd$matchedCount!=length(idcs)) stop('\nError when running update-query, expected ',length(idcs),' to match, instead got ', upd$matchedCount)
+      }
+    }
+    cnt <- cnt+length(page)
+    if(verbose) cat('Processed',format(cnt, scientific = FALSE),'records...                              \r')
+    if(length(page) < pagesize) {
+      break
+    }
+  }
+  cat('Updated',modCnt,'records (out of',matCnt,'found)                                                    \n')
+  return(list(modifiedCount=modCnt, matchedCount=matCnt))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

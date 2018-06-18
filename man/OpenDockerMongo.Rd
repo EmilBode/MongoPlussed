@@ -90,17 +90,27 @@ If the script then encounters a situation in which it has to wait, it returns a 
 OpenDockerMongo(preOnly=TRUE, ...), then soing some useful work (that may take time), then calling OpenDockerMongo again (when it will hopefully be ready for the next step)
 }
 \examples{
-\\code{
   # From a fresh install.
   # Using preOnly means that while docker is starting, control is returned.
-  DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',preOnly=TRUE, db='MyDb',collection='MyCol')
-  # Generate new documents to insert, while generating these docs docker processes are running in the background:
+  DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',
+  preOnly=TRUE, db='MyDb',collection='MyCol')
+  # Generate new documents to insert, while generating these docs,
+  # docker processes are running in the background:
   Docs <- data.frame(MyID=1:100, myData=rnorm(100))
-  if(is.numeric(DB)) DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',db='MyDb',collection='MyCol', skip=DB)
+  if(is.numeric(DB)) DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',
+  db='MyDb',collection='MyCol', skip=DB)
   # Control is only returned when finished, so DB is now a monPlus-object.
   DB$insert(Docs)
   # If port 8081 was previously free, you can now browse your docs at http://localhost:8081
-}
+
+  # Cleaning up:
+  DB$remove(paste0('{"MyID": {"$in": [',paste0(1:100, collapse=', '),']}}'))
+  if(DB$count()==0) DB$drop()
+  system('docker stop MyMongoContainer')
+  system('docker stop MyMongoContainer_view')
+  system('docker rm MyMongoContainer')
+  system('docker rm MyMongoContainer_view')
+
 }
 \seealso{
 \url{http://www.docker.com} for general information on docker

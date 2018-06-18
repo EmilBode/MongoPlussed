@@ -30,14 +30,16 @@ and handles to the collection object and client object exposed, so you can write
 }
 \section{Methods}{
 
-The same methods as \code{\link[mongolite]{mongo}} provides, along with the following:\cr\cr
-\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}\cr
-\tab Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.\cr
-\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}\cr
-\tab Adjust values in DB with FUN, see \code{\link{mongoAdjust}}\cr\cr
-Beside these methods, you can: \cr
-Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly\cr
-Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}
+The same methods as \code{\link[mongolite]{mongo}} provides, along with the following:
+\describe{
+\item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
+\item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
+}
+Beside these methods, you can:
+\describe{
+\item{}{Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly}\cr
+\item{}{Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}}
+}
 They are mostly useful if you want to dig deeper into the methods
 }
 

@@ -44,10 +44,14 @@ Say, for example, you have a database of scientific articles, each with multiple
 This gives back a list of these authors, along with identifier-fields for each document
 }
 \examples{
-# Assumed: we can establish a connection to mongodb://localhost:27017, and that this is a new or empty database/collection
+# Assumed: we can establish a connection to mongodb://localhost:27017,
+# and that this is a new or empty database/collection
 MyMongo <- monPlus('MyCol','MyMon')
-MyMongo$insert(c('{"OwnID":"Doc1","Authors": {"Name": ["John Smith", "George"], "RegistrNo": [1,2]}}',
+MyMongo$insert(c('{"OwnID":"Doc1","Authors": {"Name": ["John Smith", "Ben"], "RegistrNo": [1,2]}}',
 '{"OwnID":"Doc2","Authors": {"Name": ["John Smith", "William Smith"], "RegistrNo": [3,4]}}',
-'{"OwnID":"Doc3","Authors": {"Name": ["William", "George Smith"], "RegistrNo": [4,2]}}'))
-taggedMongofind(MyMongo$col, '{"Authors.Name": "John Smith"}',arrayfield = 'Authors', tagfields = 'OwnID')
+'{"OwnID":"Doc3","Authors": {"Name": ["William", "Benjamin Smith"], "RegistrNo": [4,2]}}'))
+taggedMongofind(MyMongo$col, '{"Authors.Name": "John Smith"}',
+arrayfield = 'Authors', tagfields = 'OwnID')
+\dontshow{MyMongo$remove('{"OwnID": {"$in": ["Doc1","Doc2","Doc3"]}}')
+if(MyMongo$count()==0) MyMongo$drop()}
 }

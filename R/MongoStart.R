@@ -17,14 +17,16 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' @param options additional connection options such as SSL keys/certs. See mongolite documentation
 #' @return A pointer to a collection on the server. It can be interfaced using methods, or the client or col attributes.
 #' @section Methods:
-#' The same methods as \code{\link[mongolite]{mongo}} provides, along with the following:\cr\cr
-#' \code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}\cr
-#' \tab Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.\cr
-#' \code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}\cr
-#' \tab Adjust values in DB with FUN, see \code{\link{mongoAdjust}}\cr\cr
-#' Beside these methods, you can: \cr
-#' Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly\cr
-#' Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}
+#' The same methods as \code{\link[mongolite]{mongo}} provides, along with the following:
+#' \describe{
+#' \item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
+#' \item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
+#' }
+#' Beside these methods, you can:
+#' \describe{
+#' \item{}{Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly}\cr
+#' \item{}{Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}}
+#' }
 #' They are mostly useful if you want to dig deeper into the methods
 #' @seealso \code{\link[mongolite]{mongo}}\cr
 #' \code{\link[RMongo]{mongoDbConnect}}
@@ -55,9 +57,13 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
                     skip = skip, limit = limit, handler=handler, pagesize = pagesize,
                     cachesize = cachesize, verbose = verbose, stringsAsFactors = stringsAsFactors)
   }
-  mlite$adjust <- function(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose2) {
-    mongoAdjust(col, findqry, infields, setfield, unboxsubf, FUN, FUNvectorized, skip, limit, pagesize, verbose)
+  mlite$adjust <- function(findqry = "{}", infields = c("All"), setfield = "extraInfo_from_R",
+                           FUN, ..., jsonargs = list(), skip = 0, limit = 0, pagesize = 1000,
+                           verbose = verbose2) {
+    mongoAdjust(moncol=col, findqry = findqry, infields = infields, setfield = setfield, FUN=FUN, ...,
+                jsonargs = jsonargs, skip = skip, limit = limit, pagesize = pagesize, verbose = verbose)
   }
+  mlite$verbose <- verbose2
   for(f in ls(parent)) assign(f, get(f, pos=parent), mlite)
   class(mlite) <- unique(c('monPlus',class(parent), class(mlite)))
   return(mlite)
@@ -145,17 +151,28 @@ print.monPlus <- function(x) {
 #' @param verbose print output indicating status?
 #'
 #' @return An monPlus-object, or if preOnly is TRUE and we have to wait for a background process, a numerical indicating what step we are (which can be given to skip).
-#' @examples \code{
+#' @examples
 #'   # From a fresh install.
 #'   # Using preOnly means that while docker is starting, control is returned.
-#'   DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',preOnly=TRUE, db='MyDb',collection='MyCol')
-#'   # Generate new documents to insert, while generating these docs docker processes are running in the background:
+#'   DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',
+#'   preOnly=TRUE, db='MyDb',collection='MyCol')
+#'   # Generate new documents to insert, while generating these docs,
+#'   # docker processes are running in the background:
 #'   Docs <- data.frame(MyID=1:100, myData=rnorm(100))
-#'   if(is.numeric(DB)) DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',db='MyDb',collection='MyCol', skip=DB)
+#'   if(is.numeric(DB)) DB <- OpenDockerMongo('MyMongoContainer', path='~/Docker/Mongo/MyDb',
+#'   db='MyDb',collection='MyCol', skip=DB)
 #'   # Control is only returned when finished, so DB is now a monPlus-object.
 #'   DB$insert(Docs)
 #'   # If port 8081 was previously free, you can now browse your docs at http://localhost:8081
-#' }
+#'
+#'   # Cleaning up:
+#'   DB$remove(paste0('{"MyID": {"$in": [',paste0(1:100, collapse=', '),']}}'))
+#'   if(DB$count()==0) DB$drop()
+#'   system('docker stop MyMongoContainer')
+#'   system('docker stop MyMongoContainer_view')
+#'   system('docker rm MyMongoContainer')
+#'   system('docker rm MyMongoContainer_view')
+#'
 #' @seealso \url{http://www.docker.com} for general information on docker
 #' \cr \url{https://hub.docker.com/_/mongo/} for information on running a mongo-container in docker
 #' \cr \pkg{mongolite}
@@ -184,7 +201,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
   if(skip<4 && !missing(host) && !host %in% c('localhost','127.0.0.1','::1')) {
     if(!missing(dockername) && !is.null(dockername) ||
        !missing(imagename) && !is.null(imagename) && imagename!='mongo' ||
-       !missing(path) && !is.null(pathpath) ||
+       !missing(path) && !is.null(path) ||
        !is.numeric(port) ||
        !missing(inclView) && !is.null(inclView) && inclView!='mongo-express' ||
        !missing(viewport) && !is.null(viewport) && viewport!='8081+')
@@ -456,7 +473,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(!any(grepl(paste0(' ',gsub('.','\\.',dockername, fixed=TRUE),'_view$'),system('docker ps', intern=TRUE)))) {
       if(!any(grepl(paste0(' ',gsub('.','\\.',dockername, fixed=TRUE),'_view$'),system('docker ps -a', intern=TRUE))))
         stop('No container found with name "',dockername,'_view", which is unexpected at this step')
-      retval <- system(paste('docker start', dockername,'_view'), intern=TRUE)
+      retval <- system(paste0('docker start ', dockername,'_view'), intern=TRUE)
       if(!is.null(attr(retval,'status')) || length(retval)!=1 || retval!=paste0(dockername,'_view'))
         stop('Restarting container "', dockername, '_view" seemed unsuccesful. Details:\n',
              'Command used: docker start ', dockername, '_view\n',
