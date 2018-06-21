@@ -118,23 +118,29 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
     if(class(x)=='list' && all(sapply(x, class)=='data.frame')) {
       x <- bind_rows(x)
     }
+    if(class(x)=='list' && length(x)==1 && is.null(names(x))) x <- x[[1]]
     return(x)
   }
   recf <- function(rec) {
     # Set NULL and empty arrays to NA, and flatten structure
     recfields <- unlist(rec[!names(rec) %in% arrayfield])
-    for(subs in arrayfield[-length(arrayfield)]) {
+    for(subs in arrayfield) {
       rec <- unlist(unname(rec[names(rec)==subs]), recursive=FALSE)
       if(all(sapply(rec, class)=='list' && sapply(rec, length)==1)) rec <- unlist(rec, recursive = FALSE)
     }
     rec <- simple_rapply(rec, flat, inclLists = 'Last')
+    arrayfield <- arrayfield[[length(arrayfield)]]
+    if(class(rec)!='data.frame') {
+      rec <- do.call(data.frame, args=list(I(rec[[arrayfield]])))
+      names(rec) <- arrayfield
+    }
     for(field in tagfields) {
-      rec[[arrayfield]][paste0('rec_',field)] <- rec[field]
+      rec[paste0('rec_',field)] <- recfields[[field]]
     }
     if(!is.null(handler)) {
-      return(handler(rec[[arrayfield]]))
+      return(handler(rec))
     } else {
-      return(rec[[arrayfield]])
+      return(rec)
     }
   }
   arrayfield <- stringr::str_split(arrayfield, '\\.')[[1]]

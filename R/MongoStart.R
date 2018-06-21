@@ -195,7 +195,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(is.null(viewport) || is.na(viewport) || !is.numeric(viewport) || viewport==0) stop('Unclear viewport')
     plusviewport <- TRUE
   } else plusviewport <- FALSE
-  if(!missing(path)) path <- path.expand(path)
+  if(!missing(path)) path <- sub('/$','',path.expand(path))
   if(!Sys.info()['sysname'] %in% c('Darwin'))
     warning('This function has only been tested on OSX, system calls may not function on your system.')
   if(skip<4 && !missing(host) && !host %in% c('localhost','127.0.0.1','::1')) {
