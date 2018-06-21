@@ -6,4 +6,6 @@ Extra interfaces for working with a mongo-database. It is largely based on the m
 For more information, see also the DESCRIPTION-file.
 
 This package is stored in 2 places: at Dans-labs is the more stable version, at my peronsal github (EmilBode) is a development-version (alpha)
-To install: devtools::install_github('Dans-labs/MongoPlussed') or devtools::install_github('EmilBode/MongoPlussed') for the development-version
+Note that it is dependent on another package I wrote, called EmilMisc. If you don't already have that, run devtools::install_github('Dans-labs/R-package_EmilMisc') first.
+
+To install this package itself, run devtools::install_github('Dans-labs/MongoPlussed') or devtools::install_github('EmilBode/MongoPlussed') for the development-version
