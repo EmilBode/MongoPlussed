@@ -131,7 +131,7 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
     rec <- simple_rapply(rec, flat, inclLists = 'Last')
     arrayfield <- arrayfield[[length(arrayfield)]]
     if(class(rec)!='data.frame') {
-      rec <- do.call(data.frame, args=list(I(rec[[arrayfield]])))
+      rec <- do.call(data.frame, args=list(I(rec)))
       names(rec) <- arrayfield
     }
     for(field in tagfields) {
