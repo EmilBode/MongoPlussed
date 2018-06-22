@@ -15,6 +15,8 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' Ignored if url is given. Defaults to localhost:27017
 #' @param verbose emit some more output
 #' @param options additional connection options such as SSL keys/certs. See mongolite documentation
+#' @param extraSlots list of extra slots/methods to attach to the object. Useful to keep track of additional properties,
+#' see for example how it is used with \code{\link{OpenDockerMongo}}, and to add even more methods. If a function is supplied, it's environment is changed to inside this object.
 #' @return A pointer to a collection on the server. It can be interfaced using methods, or the client or col attributes.
 #' @section Methods:
 #' The same methods as \code{\link[mongolite]{mongo}} provides, along with the following:
@@ -25,6 +27,8 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' Beside these methods, you can:
 #' \describe{
 #' \item{}{Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly}\cr
+#' \item{}{Get access to the used parameters: collection (in the return called collectionname to avoid confusion with the collection-object), db (called dbname), url, host, port, verbose and options}
+#' \item{}{Get access to extra slots you've specified with extraSlots, to add more properties and methods.}
 #' \item{}{Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}}
 #' }
 #' They are mostly useful if you want to dig deeper into the methods
@@ -35,7 +39,7 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' Jeroen Ooms (2014). The \code{jsonlite} Package: A Practical and Consistent Mapping Between JSON Data and R Objects. \emph{arXiv:1403.2805}. \url{http://arxiv.org/abs/1403.2805}
 #' @export
 
-monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = mongolite::ssl_options()) {
+monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = mongolite::ssl_options(), extraSlots=list()) {
   if(missing(url)) {
     if(missing(host)) host <- 'localhost'
     if(missing(port)) port <- 27017
@@ -63,8 +67,20 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
     mongoAdjust(moncol=col, findqry = findqry, infields = infields, setfield = setfield, FUN=FUN, ...,
                 jsonargs = jsonargs, skip = skip, limit = limit, pagesize = pagesize, verbose = verbose)
   }
+  mlite$collectionname <- collection
+  mlite$dbname <- db
+  mlite$url <- url
+  mlite$host <- host
+  mlite$port <- port
+  mlite$options <- options
   mlite$verbose <- verbose2
   for(f in ls(parent)) assign(f, get(f, pos=parent), mlite)
+  if(length(extraSlots)) {
+    for(i in 1:length(extraSlots)) {
+      if(is.function(extraSlots[[i]])) environment(extraSlots[[i]]) <- mlite
+      assign(names(extraSlots)[i], extraSlots[[i]], mlite)
+    }
+  }
   class(mlite) <- unique(c('monPlus',class(parent), class(mlite)))
   return(mlite)
 }
@@ -183,6 +199,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                 host='localhost', port='27017+', kickport=FALSE,
                 inclView='mongo-express', viewport='8081+', update=FALSE, preOnly=FALSE, skip=0,
                 db, collection, user=NULL, pswd=NULL, verbose=TRUE) {
+  suppliedport <- port;suppliedviewport <- viewport
   if(!is.numeric(port)) {
     if(!grepl('\\+$', port)) stop('Bad arguments: Unclear port')
     port <- suppressWarnings(as.numeric(gsub('\\+$','',port)))
@@ -513,7 +530,12 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(!is.null(imagename) && imagename!=linkedimg)
       warning('Viewer is linked to image "', linkedimg, '" instead of "',imagename,'"')
   }
-  return(monPlus(collection = collection, db = db, host = host, port=port, verbose = verbose))
+  return(monPlus(collection = collection, db = db, host = host, port=port, verbose = verbose,
+                 extraSlots = list(dockername=dockername,
+                                   viewername=paste0(dockername,'_view'),
+                                   suppliedport=suppliedport,
+                                   suppliedviewport=suppliedviewport,
+                                   DBpath=path)))
 }
 
 

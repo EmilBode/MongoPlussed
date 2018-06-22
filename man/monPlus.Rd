@@ -5,7 +5,7 @@
 \title{MongoDB client with extra functionality}
 \usage{
 monPlus(collection, db, url, host, port, verbose = FALSE,
-  options = mongolite::ssl_options())
+  options = mongolite::ssl_options(), extraSlots = list())
 }
 \arguments{
 \item{collection}{name of collection}
@@ -20,6 +20,9 @@ Ignored if url is given. Defaults to localhost:27017}
 \item{verbose}{emit some more output}
 
 \item{options}{additional connection options such as SSL keys/certs. See mongolite documentation}
+
+\item{extraSlots}{list of extra slots/methods to attach to the object. Useful to keep track of additional properties,
+see for example how it is used with \code{\link{OpenDockerMongo}}, and to add even more methods. If a function is supplied, it's environment is changed to inside this object.}
 }
 \value{
 A pointer to a collection on the server. It can be interfaced using methods, or the client or col attributes.
@@ -38,6 +41,8 @@ The same methods as \code{\link[mongolite]{mongo}} provides, along with the foll
 Beside these methods, you can:
 \describe{
 \item{}{Access the client and collection objects themselves. In mongolite::mongo() these were hidden attributes, here you can access them directly}\cr
+\item{}{Get access to the used parameters: collection (in the return called collectionname to avoid confusion with the collection-object), db (called dbname), url, host, port, verbose and options}
+\item{}{Get access to extra slots you've specified with extraSlots, to add more properties and methods.}
 \item{}{Get an accompanying RMongo-object, as if you called RMongo::mongoDBConnect(), so you can use for example \code{dbShowCollections(monPlus('MyCol','MyDb')$Rmongo)}}
 }
 They are mostly useful if you want to dig deeper into the methods
