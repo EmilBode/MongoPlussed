@@ -17,9 +17,9 @@ OpenDockerMongo(dockername, imagename = "mongo", path, host = "localhost",
 \item{path}{path to store data (docker file-system: /data/db). If dockername is given, a container already exists and update is FALSE, this is ignored (if needed with a warning, this may cause false positives if symbolic links are used, or a path needs to be further expanded)
 /cr If path does not exist, it is created, and a new database is initialized.}
 
-\item{host}{use to connect to a remote server. In this case, skip is set to 4, any docker parameters are ignored (with a warning if needed)}
+\item{host}{use to connect to a remote server. If it is not null, '', localhost or similar, skip is set to 4, any docker parameters are ignored (with a warning if needed)}
 
-\item{port}{port to use, default mongoport is 27017. Appending with "+" means a higher port number may be used if needed. Ignored if a container is just restarted (with a warning if needed, use port 0 to suppress any warnings)}
+\item{port}{port to use, default mongoport is 27017. Appending with "+" means a higher port number may be used if needed. Ignored if a container is just restarted (with a warning if the port number was exact, or the difference between number provided and used is more than 10. Use port 0 to suppress any warnings)}
 
 \item{kickport}{If port is already in use by another docker container, should this container be stopped? Ignored if port ends in "+". Only looks at running containers, and stops them, but doesn't remove them.}
 
@@ -27,7 +27,7 @@ OpenDockerMongo(dockername, imagename = "mongo", path, host = "localhost",
 \cr Given as a string with the docker imagename, 'previous', or NULL to not start anything. The value 'previous' only works if there already is a viewer-container initialized, which you just want to restart without any checks.
 \cr Currently only tested with NULL or mongo-express, unlikely to work for other vallues (but may be expanded in the future).}
 
-\item{viewport}{Port to use for the viewer-container, can also be appended with "+", ignored if inclView==FALSE}
+\item{viewport}{Port to use for the viewer-container, can also be appended with "+", ignored if inclView==FALSE. Ignored if a container is just restarted (with a warning if the port number was exact, or the difference between number provided and used is more than 10. Use port 0 to suppress any warnings)}
 
 \item{update}{logical, should the script restart everything? If TRUE does the following:\itemize{
   \item stop containers with \emph{dockername} or \emph{dockername_view}

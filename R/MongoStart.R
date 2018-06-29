@@ -84,8 +84,10 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
   class(mlite) <- unique(c('monPlus',class(parent), class(mlite)))
   return(mlite)
 }
-print.monPlus <- function(x) {
-  mongolite:::print.mongo(parent.env(x))
+
+#' @export
+print.monPlus <- function(x, ...) {
+  mongolite:::print.mongo(parent.env(x), ...)
   extra <- ls(x)[!ls(x) %in% ls(parent.env(x))]
   extracl <- sapply(extra, function(obj) {class(get(obj, x))})
   extrafun <- extra[extracl=='function']
@@ -97,7 +99,7 @@ print.monPlus <- function(x) {
         gsub('function ', obj, argsline)
       }))),
       'Extra accessors to attributes:',
-      paste0(' ',extraobj, ' (', class(get(extraobj, x)),'-object)'),
+      paste0(' ',extraobj, ' (', sapply(extraobj, function(obj) {class(get(obj, pos=x))}),'-object)'),
       sep='\n')
 }
 
@@ -146,13 +148,13 @@ print.monPlus <- function(x) {
 #' @param imagename name of docker image to use. If dockername is given, a container already exists and update is FALSE, this is ignored (if needed with a warning, supply NULL to also suppress warnings)
 #' @param path path to store data (docker file-system: /data/db). If dockername is given, a container already exists and update is FALSE, this is ignored (if needed with a warning, this may cause false positives if symbolic links are used, or a path needs to be further expanded)
 #' /cr If path does not exist, it is created, and a new database is initialized.
-#' @param host use to connect to a remote server. In this case, skip is set to 4, any docker parameters are ignored (with a warning if needed)
-#' @param port port to use, default mongoport is 27017. Appending with "+" means a higher port number may be used if needed. Ignored if a container is just restarted (with a warning if needed, use port 0 to suppress any warnings)
+#' @param host use to connect to a remote server. If it is not null, '', localhost or similar, skip is set to 4, any docker parameters are ignored (with a warning if needed)
+#' @param port port to use, default mongoport is 27017. Appending with "+" means a higher port number may be used if needed. Ignored if a container is just restarted (with a warning if the port number was exact, or the difference between number provided and used is more than 10. Use port 0 to suppress any warnings)
 #' @param kickport If port is already in use by another docker container, should this container be stopped? Ignored if port ends in "+". Only looks at running containers, and stops them, but doesn't remove them.
 #' @param inclView also initialize an extra container that links to the mongo-server, for example to be used as a GUI. The default, mongo-express, gives a webinterface to the mongo-DB.
 #' \cr Given as a string with the docker imagename, 'previous', or NULL to not start anything. The value 'previous' only works if there already is a viewer-container initialized, which you just want to restart without any checks.
 #' \cr Currently only tested with NULL or mongo-express, unlikely to work for other vallues (but may be expanded in the future).
-#' @param viewport Port to use for the viewer-container, can also be appended with "+", ignored if inclView==FALSE
+#' @param viewport Port to use for the viewer-container, can also be appended with "+", ignored if inclView==FALSE. Ignored if a container is just restarted (with a warning if the port number was exact, or the difference between number provided and used is more than 10. Use port 0 to suppress any warnings)
 #' @param update logical, should the script restart everything? If TRUE does the following:\itemize{
 #'   \item stop containers with \emph{dockername} or \emph{dockername_view}
 #'   \item remove containers with \emph{dockername} or \emph{dockername_view}
@@ -215,7 +217,8 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
   if(!missing(path)) path <- sub('/$','',path.expand(path))
   if(!Sys.info()['sysname'] %in% c('Darwin'))
     warning('This function has only been tested on OSX, system calls may not function on your system.')
-  if(skip<4 && !missing(host) && !host %in% c('localhost','127.0.0.1','::1')) {
+  if(missing(host) || is.null(host) || host %in% c('','127.0.0.1','::1')) host <- 'localhost'
+  if(skip<4 && host!='localhost') {
     if(!missing(dockername) && !is.null(dockername) ||
        !missing(imagename) && !is.null(imagename) && imagename!='mongo' ||
        !missing(path) && !is.null(path) ||
@@ -256,10 +259,10 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
       stop('\nDocker seems not to get ready')
     } else if(verbose && tries>2e6) {
       cat('\nDocker started succesfully.')
-    } else {
+    } else if(verbose) {
       cat('Docker is running and responding.')
     }
-    cat('\n')
+    if(verbose || (tries>0 && tries<500)) cat('\n')
   } # Check if docker is running
   if(skip>1 && update) {
     warning('OpenDockerMongo: Restarting docker containers (argument update set to TRUE) means going back to step 2, which is incompatible with skip=',skip,
@@ -338,7 +341,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
              'Return text:\n',
              paste(retval, collapse='\n'))
       if(verbose) cat('Restarted container "',dockername,'"\n', sep='')
-    } else {
+    } else if(verbose) {
       cat('Found running docker container.\n')
     }
     retval <- system(paste('docker inspect', dockername), intern=TRUE)
@@ -356,7 +359,13 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
       warning('Restarted docker-container "',dockername,'", but this container is using path "',contpath,
               '" instead of the path provided ("',path,'")')
     path <- contpath
-
+    # Check for port is done in the next step, because otherwsie recalling with the same port 27017+ would produce faulty results
+  } # If container exists but is not running, restart it. And do some checks
+  if(skip<5 && !is.null(dockername)) { # Check/adjust the port
+    if(!exists(retval, inherits=FALSE)) {
+      retval <- system(paste('docker inspect', dockername), intern=TRUE)
+      if(!is.null(attr(retval, 'status'))) stop('Inspecting of docker container "',dockername,'" failed.')
+    }
     contport <- regexpr('"HostPort": "[^"]+"', retval)
     contport[contport!=-1][!grepl('"27017/tcp": [',retval[which(contport!=-1)-3], fixed=TRUE)] <- -1
     if(sum(contport!=-1)>1 && all(retval[contport!=-1][-1]==retval[contport!=-1][1])) contport[contport!=-1][-1] <- -1
@@ -365,12 +374,12 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                           contport[contport!=-1]+attr(contport, 'match.length')[contport!=-1]-2)
     contport <- suppressWarnings(as.numeric(contport))
     if(is.null(contport) || is.na(contport) || contport==0) stop('Error in trying to find this containers port number.')
-    if(port!=0 && port!=contport)
+    if(port!=0 && port!=contport && (port>contport || (port+plusport*10)<contport))
       warning('Restarted docker-container "',dockername,'", but this container is using port ',contport,
               ' instead of the port provided (',port,')')
     port <- contport
-  } # If container exists but is not running, restart it. And do some checks
-  if(skip<5) { # See if mongo-engine is running
+  } # Check/adjust the port
+  if(skip<5) { # See if mongo-engine is running, but first do some checks
     if(!any(grepl(paste0('Connection to.* port ',port,'.*succeeded!'),
                   suppressWarnings(system2('nc', args=c('-z',host,port), stdout=TRUE, stderr=TRUE, timeout=5)))))
       stop('No connection could be established to host ',host,' on port ', port)
@@ -385,7 +394,8 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
         tries <- tries+2e6
       }), error=function(e) {
         if(preOnly) {
-          tries <- 1e6
+          cat('\nNo response: waiting a bit, meanwhile returning control to caller.')
+          tries <<- 1e6
         } else {
           cat('.')
           tries <<- tries+1
@@ -399,7 +409,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     } else if(verbose && tries>=2e6) {
       cat('\nSuccesfully connected.')
     }
-    cat('\n')
+    if(verbose || tries>0 && tries<100) cat('\n')
   } # See if mongo-engine is running
   if(skip<6 && !is.null(inclView)) {
     if(missing(dockername)) stop('A viewer can only be included if running mongo in a docker-container, but no dockername is specified')
@@ -441,7 +451,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                               contport[contport!=-1]+attr(contport, 'match.length')[contport!=-1]-2)
         contport <- suppressWarnings(as.numeric(contport))
         if(is.null(contport) || is.na(contport) || contport==0) stop('Error in trying to find this containers port number.')
-        if(port!=0 && port!=contport)
+        if(port!=0 && port!=contport && verbose)
           warning('Docker-container "',dockername,'" is mapped to port ',contport,
                   ' instead of the port provided (',port,'). Provided portnumber will be ignored')
         port <- contport
@@ -504,7 +514,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(!is.null(attr(retval, 'status'))) stop('Inspecting of docker container "',dockername,'_view" failed.')
     # Checks: imagename, port, docker-linkage
     if(inclView!='previous') {
-      if(!any(grepl(paste0('"Image": "',inclView,'"'), retval, fixed=TRUE)))
+      if(!any(grepl(paste0('"Image": "',inclView,'"'), retval, fixed=TRUE)) && verbose)
         warning('Restarted docker-container "',dockername,'_view", but this container is not running image ',inclView)
     }
     contport <- regexpr('"HostPort": "[^"]+"', retval)
@@ -515,7 +525,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                           contport[contport!=-1]+attr(contport, 'match.length')[contport!=-1]-2)
     contport <- suppressWarnings(as.numeric(contport))
     if(is.null(contport) || is.na(contport) || contport==0) stop('Error in trying to find this containers port number.')
-    if(viewport!=0 && viewport!=contport)
+    if(viewport!=0 && viewport!=contport && (viewport>contport || (viewport+plusviewport*10)<contport))
       warning('Restarted docker-container "',dockername,'", but this container is using port ',contport,
               ' instead of the port provided (',viewport,')')
     viewport <- contport
@@ -535,6 +545,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                                    viewername=paste0(dockername,'_view'),
                                    suppliedport=suppliedport,
                                    suppliedviewport=suppliedviewport,
+                                   actualviewport=viewport,
                                    DBpath=path)))
 }
 
