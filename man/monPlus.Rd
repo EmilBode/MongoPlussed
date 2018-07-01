@@ -37,6 +37,7 @@ The same methods as \code{\link[mongolite]{mongo}} provides, along with the foll
 \describe{
 \item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
 \item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
+\item{\code{lives(tempname=NULL)}}{Test if connection is still alive, and documents can be inserted, retrieved and removed. For debugging, you can apply an ID-field for a temporary inserted document, if NULL a random string is generated.}
 }
 Beside these methods, you can:
 \describe{

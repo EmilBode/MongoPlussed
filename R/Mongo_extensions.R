@@ -224,17 +224,16 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
 #' MyMongo$remove('{"OwnID": {"$in": ["Doc1","Doc2","Doc3"]}}')
 #' if(MyMongo$count()==0) MyMongo$drop()
 #'
-#' @importFrom EmilMisc %!in%
 #' @export
 
 mongoAdjust <- function(moncol, findqry='{}', infields=c('All'), setfield='extraInfo_from_R', FUN, ..., jsonargs=list(), skip=0, limit=0, pagesize=1000, verbose=FALSE) {
   if(class(moncol)!='mongo_collection' || mongolite:::null_ptr(moncol)) stop('Mongo collection pointer is invalid or dead')
-  if(is.null(names(jsonargs)) || 'POSIXt' %!in% names(jsonargs)) jsonargs$POSIXt <- 'mongo'
-  if('raw' %!in% names(jsonargs)) jsonargs$raw <- 'mongo'
+  if(is.null(names(jsonargs)) || !'POSIXt' %in% names(jsonargs)) jsonargs$POSIXt <- 'mongo'
+  if(!'raw' %in% names(jsonargs)) jsonargs$raw <- 'mongo'
   if(all(infields=='All')) {
     fields <- '{}'
   } else if(infields[1]=='Not') {
-    fields <- infields[infields %!in% c('Not', '_id')]
+    fields <- infields[!infields %in% c('Not', '_id')]
     fields <- paste0('{"', paste(fields, collapse = '": 0, "'), '": 0}')
   } else {
     fields <- paste0('{"', paste(infields, collapse = '": 1, "'), '": 1}')

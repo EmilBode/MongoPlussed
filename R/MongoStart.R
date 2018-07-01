@@ -23,6 +23,7 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' \describe{
 #' \item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
 #' \item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
+#' \item{\code{lives(tempname=NULL)}}{Test if connection is still alive, and documents can be inserted, retrieved and removed. For debugging, you can apply an ID-field for a temporary inserted document, if NULL a random string is generated.}
 #' }
 #' Beside these methods, you can:
 #' \describe{
@@ -66,6 +67,27 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
                            verbose = verbose2) {
     mongoAdjust(moncol=col, findqry = findqry, infields = infields, setfield = setfield, FUN=FUN, ...,
                 jsonargs = jsonargs, skip = skip, limit = limit, pagesize = pagesize, verbose = verbose)
+  }
+  mlite$lives <- function(tempname=NULL) {
+    if(missing) tempname <- paste0(sample(c(LETTERS, 0:9),size = 20, replace=TRUE), collapse='')
+    if(length(tempname)!=1 || !is.character(tempname)) stop('lives-method should be called with length-one character')
+    return(tryCatch({
+      if(mlite$count()<0) stop()
+      if(mlite$count()>0 && mlite$count(paste0('{"ID":"',tempname,'"}'))>0) {
+        temp <- mlite$iterate(paste0('{"ID":"',tempname,'"}'))
+        ret <- temp$one()
+      } else {
+        if(mlite$insert(paste0('{"ID":"',tempname,'"}'))$nInserted!=1) stop()
+        temp <- mlite$iterate(paste0('{"ID":"',tempname,'"}'))
+        ret <- temp$one()
+        if(!mlite$remove(paste0('{"ID":"',tempname,'"}'))) stop()
+      }
+      if(!identical(ret, list(ID=tempname))) stop()
+      TRUE
+    },
+    error=function(e) {
+      return(FALSE)
+    }))
   }
   mlite$collectionname <- collection
   mlite$dbname <- db
@@ -234,7 +256,10 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(!any(grepl('Docker.app', system('/bin/ps aux', intern=TRUE)))) {
       if(verbose) cat('Starting docker')
       if((retcode <- system('open --background -a Docker'))!=0) stop('Unxpected return value when starting docker:\n',retcode)
-      if(preOnly) return(0)
+      if(preOnly) {
+        if(verbose) cat('\n')
+        return(0)
+      }
     }
     # Tries: a counter that keeps track of how often we've already tried to connect to docker.
     # Special value: 1e6=no success, but preOnly, so we have to return. 2e6+n: Success after n attempts
@@ -254,7 +279,10 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
         }
       })
     }
-    if(tries==1e6) return(0)
+    if(tries==1e6) {
+      if(verbose) cat('\n')
+      return(0)
+    }
     if(tries==500) {
       stop('\nDocker seems not to get ready')
     } else if(verbose && tries>2e6) {
@@ -362,7 +390,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     # Check for port is done in the next step, because otherwsie recalling with the same port 27017+ would produce faulty results
   } # If container exists but is not running, restart it. And do some checks
   if(skip<5 && !is.null(dockername)) { # Check/adjust the port
-    if(!exists(retval, inherits=FALSE)) {
+    if(!exists('retval', inherits=FALSE)) {
       retval <- system(paste('docker inspect', dockername), intern=TRUE)
       if(!is.null(attr(retval, 'status'))) stop('Inspecting of docker container "',dockername,'" failed.')
     }
@@ -384,7 +412,8 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                   suppressWarnings(system2('nc', args=c('-z',host,port), stdout=TRUE, stderr=TRUE, timeout=5)))))
       stop('No connection could be established to host ',host,' on port ', port)
     tries <- 0 # Special value: 1e6 means failure to connect, but preOnly. 2e6+n is success after n+1 attempts
-    if(verbose) cat('Trying to establish connection')
+    if(verbose) cat('Trying to establish connection, port',port)
+    #browser()
     while(tries<100) {
       tryCatch(suppressWarnings({
         Rmon <- RMongo::mongoDbConnect(db, host, port)
@@ -394,7 +423,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
         tries <- tries+2e6
       }), error=function(e) {
         if(preOnly) {
-          cat('\nNo response: waiting a bit, meanwhile returning control to caller.')
+          cat('\nNo response: waiting a bit, meanwhile returning control to caller.\n')
           tries <<- 1e6
         } else {
           cat('.')
@@ -403,7 +432,10 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
         }
       })
     }
-    if(tries==1e6) return(4)
+    if(tries==1e6) {
+      if(verbose) cat('\n')
+      return(4)
+    }
     if(tries==100) {
       stop('\nMongo-engine seems not to get ready.')
     } else if(verbose && tries>=2e6) {
@@ -540,6 +572,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
     if(!is.null(imagename) && imagename!=linkedimg)
       warning('Viewer is linked to image "', linkedimg, '" instead of "',imagename,'"')
   }
+  if(verbose) cat('\n')
   return(monPlus(collection = collection, db = db, host = host, port=port, verbose = verbose,
                  extraSlots = list(dockername=dockername,
                                    viewername=paste0(dockername,'_view'),
