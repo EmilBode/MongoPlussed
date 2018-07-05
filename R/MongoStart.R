@@ -69,7 +69,7 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
                 jsonargs = jsonargs, skip = skip, limit = limit, pagesize = pagesize, verbose = verbose)
   }
   mlite$lives <- function(tempname=NULL) {
-    if(missing) tempname <- paste0(sample(c(LETTERS, 0:9),size = 20, replace=TRUE), collapse='')
+    if(missing(tempname)) tempname <- paste0(sample(c(LETTERS, 0:9),size = 20, replace=TRUE), collapse='')
     if(length(tempname)!=1 || !is.character(tempname)) stop('lives-method should be called with length-one character')
     return(tryCatch({
       if(mlite$count()<0) stop()
