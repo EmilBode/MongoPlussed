@@ -72,7 +72,7 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
     if(missing(tempname)) tempname <- paste0(sample(c(LETTERS, 0:9),size = 20, replace=TRUE), collapse='')
     if(length(tempname)!=1 || !is.character(tempname)) stop('lives-method should be called with length-one character')
     return(tryCatch({
-      if('ID' %!in% mlite$index()) {
+      if(!'ID' %in% colnames(mlite$index()$key)) {
         cat("Adding index for ID in db, this might take a while if it's already filled.\n")
         mlite$index(add='{"ID":1}')
       }
