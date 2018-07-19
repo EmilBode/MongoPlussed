@@ -72,6 +72,10 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
     if(missing(tempname)) tempname <- paste0(sample(c(LETTERS, 0:9),size = 20, replace=TRUE), collapse='')
     if(length(tempname)!=1 || !is.character(tempname)) stop('lives-method should be called with length-one character')
     return(tryCatch({
+      if('ID' %!in% mlite$index()) {
+        cat("Adding index for ID in db, this might take a while if it's already filled.\n")
+        mlite$index(add='{"ID":1}')
+      }
       if(mlite$count()<0) stop()
       if(mlite$count()>0 && mlite$count(paste0('{"ID":"',tempname,'"}'))>0) {
         temp <- mlite$iterate(paste0('{"ID":"',tempname,'"}'))
@@ -258,6 +262,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
       if((retcode <- system('open --background -a Docker'))!=0) stop('Unxpected return value when starting docker:\n',retcode)
       if(preOnly) {
         if(verbose) cat('\n')
+        cat('Opening docker in background, meanwhile returning control to caller.\n')
         return(0)
       }
     }
