@@ -108,7 +108,7 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
   flat <- function(x) {
     x <- if(is.null(x) || length(x)==0) NA else x
     if(is.null(names(x)) && class(x)=='list' && class(x[[1]])!='list' &&
-       all(sapply(x, class)==class(x[[1]])) && all(sapply(x, length)==1)) {
+       all(is.na(x) || sapply(x, class)==class(x[!is.na(x)][[1]])) && all(sapply(x, length)==1)) {
       x <- unlist(x)
     }
     if(!is.null(names(x)) && class(x)=='list' && all(sapply(x, is.atomic)) &&
@@ -153,18 +153,24 @@ taggedMongofind <- function(moncol, qry='{}', tagfields='_id', arrayfield, sort=
       if(nrow(cache)>cachesize) {
         if(stringsAsFactors) {
           for(col in which(sapply(cache, class)=='character'))
-            cache[col] <- as.factor(cache[col])
+            cache[[col]] <- as.factor(cache[[col]])
           result <- plyr::rbind.fill(result, cache) # Slower, but needed to unify factor levels
         } else {
           result <- bind_rows(result, cache)
         }
-        cache <- cache[F,]
+        cache <- data.frame()
       }
       if(verbose) cat('\rFound',cnt,'records...   ')
     }
     if(length(page)<pagesize) {
       cat('\n')
-      result <- rbind(result, cache)
+      if(stringsAsFactors) {
+        for(col in which(sapply(cache, class)=='character'))
+          cache[[col]] <- as.factor(cache[[col]])
+        result <- plyr::rbind.fill(result, cache) # Slower, but needed to unify factor levels
+      } else {
+        result <- bind_rows(result, cache)
+      }
       break
     }
   }
