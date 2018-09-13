@@ -4,10 +4,11 @@
 \alias{OpenDockerMongo}
 \title{Start mongo-instance in docker}
 \usage{
-OpenDockerMongo(dockername, imagename = "mongo", path, host = "localhost",
-  port = "27017+", kickport = FALSE, inclView = "mongo-express",
-  viewport = "8081+", update = FALSE, preOnly = FALSE, skip = 0, db,
-  collection, user = NULL, pswd = NULL, verbose = TRUE)
+OpenDockerMongo(dockername, imagename = "mongo", path,
+  host = "localhost", port = "27017+", kickport = FALSE,
+  inclView = "mongo-express", viewport = "8081+", update = FALSE,
+  preOnly = FALSE, skip = 0, db, collection, user = NULL,
+  pswd = NULL, verbose = TRUE)
 }
 \arguments{
 \item{dockername}{name of docker container that is runnning the mongo-server. May be NULL if skip >1, in which case it connects to the host and port given.}

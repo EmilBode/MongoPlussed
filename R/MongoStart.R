@@ -1,4 +1,3 @@
-# Helper function, not exported
 portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('netstat -an', intern = TRUE)))}
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage('Based on the mongolite-package by Jeroen Ooms')
@@ -24,6 +23,8 @@ portfree <- function(p) {!any(grepl(paste0('[^0-9]',p,' .*LISTEN'), system('nets
 #' \item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
 #' \item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
 #' \item{\code{lives(tempname=NULL)}}{Test if connection is still alive, and documents can be inserted, retrieved and removed. For debugging, you can apply an ID-field for a temporary inserted document, if NULL a random string is generated.}
+#' \item{\code{iterate(query = "{}", fields = "{\"_id\":0}", sort = "{}", skip = 0, limit = 0, no_timeout = FALSE)}}{Same as the regular function in mongolite::mongo()$iterate, but with an extra option to set the timeout for a cursor off, so it stays alive when not querying for a long time. Be careful, as closing of connections is messy.}
+#' \item{\code{count(query="{}", extensive=NA)}}{Modification of the standard-count, where if is.na(extensive) && query=="{}", no querying is done, but instead the mongo count() methods is invoked, which is a lot faster.}
 #' }
 #' Beside these methods, you can:
 #' \describe{
@@ -53,6 +54,7 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
   col <- mongolite:::mongo_collection_new(client,collection, db)
   parent <- mongolite::mongo(collection, db, url, verbose, options)
   mlite <- new.env(parent=parent)
+  for(f in ls(parent)) assign(f, get(f, pos=parent), mlite)
   mlite$client <- client
   mlite$col <- col
   mlite$RMongo <- RMongo::mongoDbConnect(db, host, port)
@@ -76,8 +78,8 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
         cat("Adding index for ID in db, this might take a while if it's already filled.\n")
         mlite$index(add='{"ID":1}')
       }
-      if(mlite$count()<0) stop()
-      if(mlite$count()>0 && mlite$count(paste0('{"ID":"',tempname,'"}'))>0) {
+      if(mlite$count(extensive=FALSE)<0) stop()
+      if(mlite$count(extensive=FALSE)>0 && mlite$count(paste0('{"ID":"',tempname,'"}'))>0) {
         temp <- mlite$iterate(paste0('{"ID":"',tempname,'"}'))
         ret <- temp$one()
       } else {
@@ -93,6 +95,21 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
       return(FALSE)
     }))
   }
+  mlite$iterate <- function (query = "{}", fields = "{\"_id\":0}", sort = "{}", skip = 0, limit = 0, no_timeout = FALSE) {
+    check_col()
+    cur <- mongo_collection_find(col, query = query, sort = sort, fields = fields, skip = skip, limit = limit, no_timeout=no_timeout)
+    mongo_iterator(cur)
+  }
+  environment(mlite$iterate) <- environment(mlite$find)
+  litecount <- mlite$count
+  mlite$count <- function (query = "{}", extensive=NA) {
+    if(is.na(extensive)) extensive <- query!='{}'
+    if(!extensive) {
+      if(query!='{}') stop('Non-extensive searching is only possible for query "{}"')
+      return(mlite$info()$stats$count)
+    }
+    return(litecount(query=query))
+  }
   mlite$collectionname <- collection
   mlite$dbname <- db
   mlite$url <- url
@@ -100,7 +117,6 @@ monPlus <- function(collection, db, url, host, port, verbose = FALSE, options = 
   mlite$port <- port
   mlite$options <- options
   mlite$verbose <- verbose2
-  for(f in ls(parent)) assign(f, get(f, pos=parent), mlite)
   if(length(extraSlots)) {
     for(i in 1:length(extraSlots)) {
       if(is.function(extraSlots[[i]])) environment(extraSlots[[i]]) <- mlite
@@ -228,6 +244,7 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                 inclView='mongo-express', viewport='8081+', update=FALSE, preOnly=FALSE, skip=0,
                 db, collection, user=NULL, pswd=NULL, verbose=TRUE) {
   suppliedport <- port;suppliedviewport <- viewport
+  if(missing(db) || missing(collection)) stop('db and collection need to be supplied')
   if(!is.numeric(port)) {
     if(!grepl('\\+$', port)) stop('Bad arguments: Unclear port')
     port <- suppressWarnings(as.numeric(gsub('\\+$','',port)))
@@ -347,13 +364,13 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
         if(system(paste('docker stop',tostop), intern=TRUE)!=tostop) stop('Unexpected return value when trying to stop ',tostop)
       }
       retval <- suppressWarnings(system2(command='docker', args=paste0(
-          'run --name ',dockername,' -v ',path,':/data/db -p ',port,':27017 -d '
+          'run --name ',dockername,' -v "',path,'":/data/db -p ',port,':27017 -d '
           ,imagename, ' --logpath /data/db/log.log',ifelse(is.null(user),'',' --auth')),
         stdout = TRUE, stderr=TRUE))
       if(!is.null(attr(retval,'status')) || length(retval)>1 || grepl('[^0-9a-fA-F]', retval))
         stop('Starting docker-container seemed unsuccesful. Extra details:\n',
              'Command run:\n',
-             paste0('docker run --name ',dockername,' -v ',path,':/data/db -p ',port,':27017 -d '
+             paste0('docker run --name ',dockername,' -v "',path,'":/data/db -p ',port,':27017 -d '
                     ,imagename, ' --logpath /data/db/log.log',ifelse(is.null(user),'',' --auth'),'\n'),
              'Return status-code: ',ifelse(is.null(attr(retval,'status')), '0 (success)',attr(retval,'status')),'\n',
              'Return text:\n',
@@ -465,7 +482,6 @@ OpenDockerMongo <- function(dockername, imagename='mongo', path,
                paste(retval, sep = '\n'),'\n')
         if(verbose) cat(gsub('^Status: ','',retval[length(retval)]),'\n')
       }
-      if(verbose) cat('Creating mongo-container "',dockername,'"\n', sep='')
       if(skip>=4) {
         # Then we still need to check/decide input
         # First image:

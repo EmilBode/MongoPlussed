@@ -5,8 +5,8 @@
 \title{Find values inside documents, with pointers to the root-document.}
 \usage{
 taggedMongofind(moncol, qry = "{}", tagfields = "_id", arrayfield,
-  sort = "{}", skip = 0, limit = 0, handler = NULL, pagesize = 1000,
-  cachesize = 50000, verbose = FALSE,
+  sort = "{}", skip = 0, limit = 0, handler = NULL,
+  pagesize = 1000, cachesize = 50000, verbose = FALSE,
   stringsAsFactors = default.stringsAsFactors())
 }
 \arguments{

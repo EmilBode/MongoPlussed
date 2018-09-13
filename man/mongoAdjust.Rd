@@ -5,8 +5,8 @@
 \title{Use a function to update documents in a mongo-Db dynamically}
 \usage{
 mongoAdjust(moncol, findqry = "{}", infields = c("All"),
-  setfield = "extraInfo_from_R", FUN, ..., jsonargs = list(), skip = 0,
-  limit = 0, pagesize = 1000, verbose = FALSE)
+  setfield = "extraInfo_from_R", FUN, ..., jsonargs = list(),
+  skip = 0, limit = 0, pagesize = 1000, verbose = FALSE)
 }
 \arguments{
 \item{moncol}{Used when directly calling mongoAdjust, pointer to the mongo-collection. If you use monPlus()$adjust, this is retrieved from monPlus}

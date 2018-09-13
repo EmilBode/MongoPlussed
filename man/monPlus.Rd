@@ -38,6 +38,8 @@ The same methods as \code{\link[mongolite]{mongo}} provides, along with the foll
 \item{\code{taggedfind(qry='{}', tagfields='_id', arrayfield, sort='{}', skip=0, limit=0, handler=NULL, pagesize=1000, cachesize=5e4, verbose=verbose, stringsAsFactors=default.stringsAsFactors())}}{Find values inside documents, with pointers to the root-document, see \code{\link{taggedMongofind}}. Verbose defaults to the value given at creation of monPlus, but can be adjusted.}
 \item{\code{adjust(findqry='{}', infields=c('All'), setfield='extraInfo',unboxsubf=c(), FUN, FUNvectorized=FALSE, skip=0, limit=0,pagesize=1000, verbose=verbose)}}{Adjust values in DB with FUN, see \code{\link{mongoAdjust}}}
 \item{\code{lives(tempname=NULL)}}{Test if connection is still alive, and documents can be inserted, retrieved and removed. For debugging, you can apply an ID-field for a temporary inserted document, if NULL a random string is generated.}
+\item{\code{iterate(query = "{}", fields = "{\"_id\":0}", sort = "{}", skip = 0, limit = 0, no_timeout = FALSE)}}{Same as the regular function in mongolite::mongo()$iterate, but with an extra option to set the timeout for a cursor off, so it stays alive when not querying for a long time. Be careful, as closing of connections is messy.}
+\item{\code{count(query="{}", extensive=NA)}}{Modification of the standard-count, where if is.na(extensive) && query=="{}", no querying is done, but instead the mongo count() methods is invoked, which is a lot faster.}
 }
 Beside these methods, you can:
 \describe{

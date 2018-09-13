@@ -311,8 +311,3 @@ mongoAdjust <- function(moncol, findqry='{}', infields=c('All'), setfield='extra
 
 
 
-
-
-
-
-

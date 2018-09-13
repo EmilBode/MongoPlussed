@@ -5,8 +5,8 @@
 \title{Simplified find in mongo}
 \usage{
 simpleMongofind(moncol, qry = "{}", fields = "{\\"_id\\" : 0}",
-  sort = "{}", skip = 0, limit = 0, handler = NULL, pagesize = 1000,
-  verbose = F)
+  sort = "{}", skip = 0, limit = 0, handler = NULL,
+  pagesize = 1000, verbose = F)
 }
 \arguments{
 \item{moncol}{mongo-collection pointer}
